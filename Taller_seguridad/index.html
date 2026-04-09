@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Seguridad 2FA</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .panel {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 15px;
+        }
+        .badge-primary { background: #2196F3; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .badge-secondary { background: #4CAF50; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-size: 14px; font-weight: 500; color: #333; }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background: #1976D2; }
+        .btn-danger { background: #f44336; }
+        .btn-danger:hover { background: #d32f2f; }
+        .alert {
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-danger { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .qr-code { text-align: center; margin: 15px 0; }
+        .qr-code img { max-width: 200px; border: 1px solid #ddd; border-radius: 8px; }
+        .msg-log {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+        .msg-item {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            background: #fafafa;
+        }
+        .msg-item.ok { background: #e8f5e9; border-color: #4caf50; }
+        .msg-item.fail { background: #ffebee; border-color: #f44336; }
+        .msg-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .msg-content { font-size: 14px; margin-bottom: 5px; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 6px;
+        }
+        .stat-number { font-size: 24px; font-weight: bold; }
+        .stat-label { font-size: 12px; color: #666; }
+        .checkbox { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+        .checkbox input { width: auto; }
+        hr { margin: 15px 0; border: none; border-top: 1px solid #e0e0e0; }
+        h3 { font-size: 16px; margin-bottom: 10px; }
+        /* Estilos para requisitos de contraseña */
+        .password-requirements {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+        .password-requirements h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            color: #333;
+        }
+        .requirement {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 5px 0;
+            padding: 4px 0;
+        }
+        .requirement-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        .requirement.met .requirement-icon {
+            background: #4CAF50;
+            color: white;
+        }
+        .requirement.unmet .requirement-icon {
+            background: #ddd;
+            color: #999;
+        }
+        .requirement.met {
+            color: #4CAF50;
+        }
+        .requirement.unmet {
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- SISTEMA PRINCIPAL -->
+    <div class="panel">
+        <div class="panel-header">
+            <span class="badge-primary">Sistema Principal</span>
+            <span style="font-weight: bold;">Autenticación 2FA + Envío de Mensajes</span>
+        </div>
+
+        <!-- Sección Registro -->
+        <h3>📝 Registro de Usuario</h3>
+        <div class="form-group">
+            <label>Usuario</label>
+            <input type="text" id="regUser" placeholder="ej: juan">
+        </div>
+        <div class="form-group">
+            <label>Contraseña</label>
+            <input type="password" id="regPass" placeholder="****" oninput="validatePassword()">
+            
+            <!-- Requisitos de Contraseña -->
+            <div class="password-requirements">
+                <h4>📋 Requisitos de Contraseña:</h4>
+                <div class="requirement unmet" id="req-length">
+                    <div class="requirement-icon">✓</div>
+                    <span>Mínimo 8 caracteres</span>
+                </div>
+                <div class="requirement unmet" id="req-uppercase">
+                    <div class="requirement-icon">✓</div>
+                    <span>Al menos una letra mayúscula (A-Z)</span>
+                </div>
+                <div class="requirement unmet" id="req-lowercase">
+                    <div class="requirement-icon">✓</div>
+                    <span>Al menos una letra minúscula (a-z)</span>
+                </div>
+            </div>
+        </div>
+        <button onclick="register()" id="registerBtn" disabled style="opacity: 0.5; cursor: not-allowed;">Registrar Usuario</button>
+        <div id="qrContainer" class="qr-code"></div>
+        <div id="regResult"></div>
+        <hr>
+
+        <!-- Sección Login -->
+        <h3>🔐 Inicio de Sesión</h3>
+        <div class="form-group">
+            <label>Usuario</label>
+            <input type="text" id="loginUser" placeholder="usuario">
+        </div>
+        <div class="form-group">
+            <label>Contraseña</label>
+            <input type="password" id="loginPass" placeholder="contraseña">
+        </div>
+        <button onclick="login()">Iniciar Sesión</button>
+        <div id="loginResult"></div>
+
+        <!-- Sección 2FA (aparece después de login) -->
+        <div id="2faSection" style="display:none; margin-top: 15px;">
+            <h3>🔢 Segundo Factor (2FA)</h3>
+            <div class="form-group">
+                <label>Código de 6 dígitos</label>
+                <input type="text" id="code2fa" maxlength="6" placeholder="000000">
+            </div>
+            <button onclick="verify2FA()">Verificar Código</button>
+            <div id="2faResult"></div>
+        </div>
+
+        <!-- Sección Envío de Mensajes (aparece después de 2FA exitoso) -->
+        <div id="sendSection" style="display:none; margin-top: 15px;">
+            <hr>
+            <h3>✉️ Enviar Mensaje al Sistema Secundario</h3>
+            <div class="form-group">
+                <label>Mensaje</label>
+                <input type="text" id="message" placeholder="Escribe tu mensaje">
+            </div>
+            <div class="checkbox">
+                <input type="checkbox" id="alterCheckbox">
+                <label>🔧 Simular alteración del mensaje en tránsito</label>
+            </div>
+            <button onclick="sendMessage()">Enviar Mensaje Firmado</button>
+            <div id="sendResult"></div>
+            <div id="sessionInfo" style="margin-top: 10px; font-size: 12px; color: #666;"></div>
+        </div>
+    </div>
+
+    <!-- SISTEMA SECUNDARIO -->
+    <div class="panel">
+        <div class="panel-header">
+            <span class="badge-secondary">Sistema Secundario</span>
+            <span style="font-weight: bold;">Receptor de Mensajes</span>
+        </div>
+        <h3>📋 Log de Mensajes Recibidos</h3>
+        <div id="msgLog" class="msg-log">
+            <div class="alert alert-info">Esperando mensajes...</div>
+        </div>
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalCount">0</div>
+                <div class="stat-label">Total Recibidos</div>
+            </div>
+            <div class="stat-card" style="background:#e8f5e9;">
+                <div class="stat-number" id="acceptedCount">0</div>
+                <div class="stat-label">Aceptados ✅</div>
+            </div>
+            <div class="stat-card" style="background:#ffebee;">
+                <div class="stat-number" id="rejectedCount">0</div>
+                <div class="stat-label">Rechazados ❌</div>
+            </div>
+        </div>
+        <div id="lastMsgDetail" style="margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 6px; font-size: 12px;">
+            <strong>Último mensaje:</strong> Ninguno
+        </div>
+    </div>
+</div>
+
+<script>
+// Estado global
+let currentToken = null;
+let currentUser = null;
+let messages = []; // Almacenar mensajes localmente
+let total = 0, accepted = 0, rejected = 0;
+
+// Función para actualizar UI de logs
+function updateLogDisplay() {
+    const logDiv = document.getElementById('msgLog');
+    if (messages.length === 0) {
+        logDiv.innerHTML = '<div class="alert alert-info">Esperando mensajes...</div>';
+    } else {
+        logDiv.innerHTML = messages.map(msg => `
+            <div class="msg-item ${msg.status === 'ACEPTADO' ? 'ok' : 'fail'}">
+                <div class="msg-header">
+                    <span>${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    <span style="font-weight:bold;">${msg.status}</span>
+                </div>
+                <div class="msg-content"><strong>Contenido:</strong> ${msg.content}</div>
+                <div style="font-size: 11px; color: #666;"><strong>HMAC:</strong> ${msg.hmac.substring(0, 32)}...</div>
+            </div>
+        `).join('');
+    }
+    
+    document.getElementById('totalCount').textContent = total;
+    document.getElementById('acceptedCount').textContent = accepted;
+    document.getElementById('rejectedCount').textContent = rejected;
+}
+
+// Registrar usuario
+async function register() {
+    const username = document.getElementById('regUser').value;
+    const password = document.getElementById('regPass').value;
+    
+    const response = await fetch('http://localhost:8080/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+    
+    const data = await response.json();
+    if (response.ok) {
+        document.getElementById('regResult').innerHTML = `<div class="alert alert-success">✅ ${data.message} - ID: ${data.userId}</div>`;
+        // Mostrar QR
+        const qrDiv = document.getElementById('qrContainer');
+        qrDiv.innerHTML = `<p><strong>📱 Escanea este QR con Google Authenticator:</strong></p>
+                           <img src="http://localhost:8080/qrcode/${data.userId}" alt="QR Code">`;
+    } else {
+        document.getElementById('regResult').innerHTML = `<div class="alert alert-danger">❌ Error: ${data.error}</div>`;
+    }
+}
+
+// Login
+async function login() {
+    const username = document.getElementById('loginUser').value;
+    const password = document.getElementById('loginPass').value;
+    
+    const response = await fetch('http://localhost:8080/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+    
+    const data = await response.json();
+    if (response.ok && data.status === '2FA_REQUIRED') {
+        currentUser = username;
+        document.getElementById('loginResult').innerHTML = `<div class="alert alert-success">✅ Credenciales correctas. Ingresa tu código 2FA</div>`;
+        document.getElementById('2faSection').style.display = 'block';
+    } else {
+        document.getElementById('loginResult').innerHTML = `<div class="alert alert-danger">❌ ${data.error || 'Credenciales inválidas'}</div>`;
+    }
+}
+
+// Verificar 2FA
+async function verify2FA() {
+    const code = document.getElementById('code2fa').value;
+    
+    const response = await fetch('http://localhost:8080/verify-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser, code })
+    });
+    
+    const data = await response.json();
+    if (response.ok) {
+        currentToken = data.token;
+        document.getElementById('2faResult').innerHTML = `<div class="alert alert-success">✅ 2FA correcto. Acceso concedido</div>`;
+        document.getElementById('2faSection').style.display = 'none';
+        document.getElementById('sendSection').style.display = 'block';
+        document.getElementById('sessionInfo').innerHTML = `Sesión activa: <strong>${currentUser}</strong> <button onclick="logout()" style="width:auto; margin-left:10px; padding:5px 10px;">Cerrar sesión</button>`;
+    } else {
+        document.getElementById('2faResult').innerHTML = `<div class="alert alert-danger">❌ Código 2FA incorrecto</div>`;
+    }
+}
+
+// Enviar mensaje
+async function sendMessage() {
+    if (!currentToken) {
+        alert('Debes iniciar sesión primero');
+        return;
+    }
+    
+    let message = document.getElementById('message').value;
+    const alter = document.getElementById('alterCheckbox').checked;
+    
+    if (!message) {
+        alert('Escribe un mensaje');
+        return;
+    }
+    
+    // Si se marca alteración, modificamos el mensaje
+    if (alter) {
+        message = message + " [DATOS MODIFICADOS - ATAQUE SIMULADO]";
+    }
+    
+    const response = await fetch('http://localhost:8080/send', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${currentToken}`
+        },
+        body: JSON.stringify({ message })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+        document.getElementById('sendResult').innerHTML = `<div class="alert alert-success">✅ ${data.status} - HMAC: ${data.hmac.substring(0, 32)}...</div>`;
+        // Agregar al log del sistema secundario
+        addMessageToLog(message, data.hmac, 'ACEPTADO');
+    } else {
+        document.getElementById('sendResult').innerHTML = `<div class="alert alert-danger">❌ ${data.error || 'Mensaje rechazado'}</div>`;
+        addMessageToLog(message, 'HMAC_NO_VALIDO', 'RECHAZADO');
+    }
+}
+
+// Agregar mensaje al log del sistema secundario (simulación)
+function addMessageToLog(content, hmac, status) {
+    total++;
+    if (status === 'ACEPTADO') accepted++;
+    else rejected++;
+    
+    messages.unshift({
+        timestamp: Date.now(),
+        content: content,
+        hmac: hmac,
+        status: status
+    });
+    
+    updateLogDisplay();
+    
+    // Actualizar detalle del último mensaje
+    document.getElementById('lastMsgDetail').innerHTML = `
+        <strong>Último mensaje:</strong><br>
+        <strong>Contenido:</strong> ${content}<br>
+        <strong>HMAC:</strong> ${hmac}<br>
+        <strong>Veredicto:</strong> <span style="color:${status === 'ACEPTADO' ? '#4CAF50' : '#f44336'}">${status === 'ACEPTADO' ? '✅ Mensaje ÍNTEGRO - Procesado' : '❌ Mensaje ALTERADO - Rechazado'}</span>
+    `;
+}
+
+// Cerrar sesión
+function logout() {
+    currentToken = null;
+    currentUser = null;
+    document.getElementById('sendSection').style.display = 'none';
+    document.getElementById('2faSection').style.display = 'none';
+    document.getElementById('loginUser').value = '';
+    document.getElementById('loginPass').value = '';
+    document.getElementById('code2fa').value = '';
+    document.getElementById('message').value = '';
+    document.getElementById('loginResult').innerHTML = '';
+    document.getElementById('2faResult').innerHTML = '';
+    document.getElementById('sendResult').innerHTML = '';
+    document.getElementById('sessionInfo').innerHTML = '';
+    alert('Sesión cerrada');
+}
+
+// Validar requisitos de contraseña en tiempo real
+function validatePassword() {
+    const password = document.getElementById('regPass').value;
+    const registerBtn = document.getElementById('registerBtn');
+    
+    // Verificar longitud mínima
+    const hasLength = password.length >= 8;
+    updateRequirement('req-length', hasLength);
+    
+    // Verificar letra mayúscula
+    const hasUppercase = /[A-Z]/.test(password);
+    updateRequirement('req-uppercase', hasUppercase);
+    
+    // Verificar letra minúscula
+    const hasLowercase = /[a-z]/.test(password);
+    updateRequirement('req-lowercase', hasLowercase);
+    
+    // Habilitar botón si cumple todos los requisitos
+    const allMet = hasLength && hasUppercase && hasLowercase;
+    registerBtn.disabled = !allMet;
+    registerBtn.style.opacity = allMet ? '1' : '0.5';
+    registerBtn.style.cursor = allMet ? 'pointer' : 'not-allowed';
+}
+
+// Actualizar estado visual de un requisito
+function updateRequirement(elementId, isMet) {
+    const element = document.getElementById(elementId);
+    if (isMet) {
+        element.classList.remove('unmet');
+        element.classList.add('met');
+    } else {
+        element.classList.remove('met');
+        element.classList.add('unmet');
+    }
+}
+</script>
+</body>
+</html>
